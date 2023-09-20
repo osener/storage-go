@@ -292,7 +292,7 @@ func (c *Client) ListFiles(bucketId string, queryPath string, options FileSearch
 	return response, nil
 }
 
-func (c *Client) DownloadFile(bucketId string, filePath string, urlOptions ...UrlOptions) ([]byte, error) {
+func (c *Client) DownloadFile(bucketId string, filePath string, urlOptions ...UrlOptions) (io.ReadCloser, error) {
 	var options UrlOptions
 	renderPath := "object"
 	if len(urlOptions) > 0 {
@@ -313,9 +313,8 @@ func (c *Client) DownloadFile(bucketId string, filePath string, urlOptions ...Ur
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	return body, err
+
+	return res.Body, nil
 }
 
 // buildUrlWithOption will base on current url and option to build a new url
