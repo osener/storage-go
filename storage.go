@@ -21,7 +21,7 @@ const (
 	defaultSortOrder        = "asc"
 )
 
-func (c *Client) UploadOrUpdateFile(bucketId string, relativePath string, data io.Reader, update bool) FileUploadResponse {
+func (c *Client) UploadOrUpdateFile(bucketId string, relativePath string, data io.Reader, update bool) (FileUploadResponse, error) {
 	c.clientTransport.header.Set("cache-control", defaultFileCacheControl)
 	if c.clientTransport.header.Get("content-type") == "" {
 		c.clientTransport.header.Set("content-type", defaultFileContentType)
@@ -42,27 +42,36 @@ func (c *Client) UploadOrUpdateFile(bucketId string, relativePath string, data i
 	}
 
 	request, err = http.NewRequest(method, c.clientTransport.baseUrl.String()+"/object/"+_path, body)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 	res, err = c.session.Do(request)
 	if err != nil {
-		panic(err)
+		return FileUploadResponse{}, err
 	}
 
 	body_, err := io.ReadAll(res.Body)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 	var response FileUploadResponse
 	err = json.Unmarshal(body_, &response)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 
-	return response
+	return response, nil
 }
 
-func (c *Client) UpdateFile(bucketId string, relativePath string, data io.Reader) FileUploadResponse {
+func (c *Client) UpdateFile(bucketId string, relativePath string, data io.Reader) (FileUploadResponse, error) {
 	return c.UploadOrUpdateFile(bucketId, relativePath, data, true)
 }
 
-func (c *Client) UploadFile(bucketId string, relativePath string, data io.Reader) FileUploadResponse {
+func (c *Client) UploadFile(bucketId string, relativePath string, data io.Reader) (FileUploadResponse, error) {
 	return c.UploadOrUpdateFile(bucketId, relativePath, data, false)
 }
 
-func (c *Client) MoveFile(bucketId string, sourceKey string, destinationKey string) FileUploadResponse {
+func (c *Client) MoveFile(bucketId string, sourceKey string, destinationKey string) (FileUploadResponse, error) {
 	jsonBody, _ := json.Marshal(map[string]interface{}{
 		"bucketId":       bucketId,
 		"sourceKey":      sourceKey,
@@ -73,20 +82,29 @@ func (c *Client) MoveFile(bucketId string, sourceKey string, destinationKey stri
 		http.MethodPost,
 		c.clientTransport.baseUrl.String()+"/object/move",
 		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 
 	res, err := c.session.Do(request)
 	if err != nil {
-		panic(err)
+		return FileUploadResponse{}, err
 	}
 
 	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 	var response FileUploadResponse
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 
-	return response
+	return response, nil
 }
 
-func (c *Client) CreateSignedUrl(bucketId string, filePath string, expiresIn int) SignedUrlResponse {
+func (c *Client) CreateSignedUrl(bucketId string, filePath string, expiresIn int) (SignedUrlResponse, error) {
 	jsonBody, _ := json.Marshal(map[string]interface{}{
 		"expiresIn": expiresIn,
 	})
@@ -95,18 +113,27 @@ func (c *Client) CreateSignedUrl(bucketId string, filePath string, expiresIn int
 		http.MethodPost,
 		c.clientTransport.baseUrl.String()+"/object/sign/"+bucketId+"/"+filePath,
 		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return SignedUrlResponse{}, err
+	}
 
 	res, err := c.session.Do(request)
 	if err != nil {
-		panic(err)
+		return SignedUrlResponse{}, err
 	}
 
 	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return SignedUrlResponse{}, err
+	}
 	var response SignedUrlResponse
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return SignedUrlResponse{}, err
+	}
 	response.SignedURL = c.clientTransport.baseUrl.String() + response.SignedURL
 
-	return response
+	return response, nil
 }
 
 func (c *Client) CreateSignedUploadUrl(bucketId string, filePath string) (SignedUploadUrlResponse, error) {
@@ -178,7 +205,7 @@ func (c *Client) GetPublicUrl(bucketId string, filePath string, urlOptions ...Ur
 	return response
 }
 
-func (c *Client) RemoveFile(bucketId string, paths []string) FileUploadResponse {
+func (c *Client) RemoveFile(bucketId string, paths []string) (FileUploadResponse, error) {
 	jsonBody, _ := json.Marshal(map[string]interface{}{
 		"prefixes": paths,
 	})
@@ -187,21 +214,30 @@ func (c *Client) RemoveFile(bucketId string, paths []string) FileUploadResponse 
 		http.MethodDelete,
 		c.clientTransport.baseUrl.String()+"/object/"+bucketId,
 		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 
 	res, err := c.session.Do(request)
 	if err != nil {
-		panic(err)
+		return FileUploadResponse{}, err
 	}
 
 	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 	var response FileUploadResponse
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return FileUploadResponse{}, err
+	}
 	response.Data = body
 
-	return response
+	return response, nil
 }
 
-func (c *Client) ListFiles(bucketId string, queryPath string, options FileSearchOptions) []FileObject {
+func (c *Client) ListFiles(bucketId string, queryPath string, options FileSearchOptions) ([]FileObject, error) {
 	if options.Offset == 0 {
 		options.Offset = defaultOffset
 	}
@@ -233,18 +269,27 @@ func (c *Client) ListFiles(bucketId string, queryPath string, options FileSearch
 		http.MethodPost,
 		c.clientTransport.baseUrl.String()+"/object/list/"+bucketId,
 		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := c.session.Do(request)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 	var response []FileObject
 
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, err
+	}
 
-	return response
+	return response, nil
 }
 
 func (c *Client) DownloadFile(bucketId string, filePath string, urlOptions ...UrlOptions) ([]byte, error) {
